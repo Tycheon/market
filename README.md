@@ -1,1 +1,61 @@
 # market
+
+market is a [rust](http://rust-lang.org/) api (currently using rust nightly) for interfacing with [StarFighter.io](http://starfighter.io)'s [StockFighter](http://stockfighter.io) game.
+
+# Code Example
+
+todo
+
+# Motivation
+
+I'm currently employed in IT, working everything from desk-side, to helpdesk, to server, to networking. It's been great fun, in terms of the challenges that have been presented.
+However, I often find myself yearning to get back to where I spent my university years: Programming. I have a B.Sc. in Computer Science from the Royal Military College of Canada, 
+as well as an M.Sc. in Artificial Intelligence.
+
+[Stockfighter](http://stockfighter.io) seemed like a great way to get back into things. Rust seemed like a perfect language to use to get back into things with (it has a lot of
+what I loved in C -- my language of choice -- but with most of the drawbacks omitted).
+
+I figured, why not post everything on GitHub? Maybe someone can make some use from it?
+
+# Installation
+
+todo - cargo.io ;)
+
+# API Reference
+
+todo - include rustdoc docs in repo and link to them.
+
+# Tests
+
+todo
+
+# Contributors
+
+Not looking for contributors at the moment - but I'd *love* to read comments =)
+
+# License
+
+The MIT License (MIT)
+
+Copyright (c) 2016 @Tycheon
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+# Thanks
+- jxson for his [README template](https://gist.github.com/jxson/1784669)
