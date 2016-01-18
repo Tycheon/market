@@ -1,6 +1,6 @@
-Things that need to be done to this code prior to uploading to GitHub:
+The short list:
 
-1 - Get rid of the DRY violations  -- macro!?
+1 - Get rid of the DRY violations  -- macro
 2 - Revise Result<self,errString> to Option<T> where T is an enum of the possible errors we might need to throw
 ... don't use String 
 3 - Redo the Settings struct and implementation ... it's data that's required by other components
