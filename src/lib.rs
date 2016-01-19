@@ -15,6 +15,7 @@ use std::io::Read;
 
 static STOCKFIGHTER_API_URL: &'static str = "https://api.stockfighter.io/ob/api";
 
+#[derive(Debug)]
 pub enum StockfighterErr {
   Hyper(hyper::error::Error),
   Serde(serde_json::error::Error),
@@ -50,8 +51,8 @@ impl StockfighterVenue {
   ///     //Could be a comms error. Is likely that ABCDEF isn't a valid venue, in which case we'll get a deserialize error
   ///   },
   ///   Ok( val ) => {
-  ///     println!("Hearbeat successful. Status is {:?}", val.ok);
-  ///     if val.ok {
+  ///     println!("Hearbeat successful. Status is {:?}", val);
+  ///     if val {
   ///       println!("We're good - Do the trading n such");
   ///     } else {
   ///       println!("We're wedged - Restart the level entirely.");
@@ -60,56 +61,23 @@ impl StockfighterVenue {
   /// }
   /// ```
   /// #Example 2
-  /// Conversely, you can just ignore them and see if you get ok==true
+  /// Conversely, you can just ignore them and see if you get 'true' as a return value. 
   /// ```
   /// use market;
   /// let mut test_venue = market::StockfighterVenue::new( "ABCDEF".to_string() );
   /// test_venue.heartbeat();
-  /// if test_venue.ok {
+  /// if test_venue {
   ///   println!("Venue isn't wedged. Trade away!");
   /// }
   /// ```
-  pub fn heartbeat( &mut self ) -> Result<&mut StockfighterVenue, String> {
-    //DRY VIOLOATION - REFACTOR (same as our other heartbeat check)
-    //Create generic and handle different errors (ie. no error field on sfvenue)
+  pub fn heartbeat( &mut self ) -> Result< bool, StockfighterErr > {
     self.ok = false;
     let url = format!("{}/venues/{}/heartbeat", STOCKFIGHTER_API_URL.to_owned(), self.venue);
     let mut body = String::new();
-    let mut err: bool = false;
-    let mut err_val = String::new();
     let client = Client::new();
-    //Schroedinger's binding: it's both a response, and an error until you look =P
-    //Only started learning rust on 13 Dec 2015, and it's currently 30 Dec 2015 - So it helps me think through the problem to 
-    //Explicitly declare these
-    let response: Result< hyper::client::response::Response, hyper::error::Error> = client.get( &url ).header(Connection::close()).send();
-    match response {
-      Err(e) => {
-        self.ok = false;
-        err = true;
-        err_val = format!("Client.get error in StockfighterVenue::heartbeat(): {:?}\n", e);
-      },
-      Ok( mut the_result ) => {
-        //Can't read_to_string on a Result<X,Y>, so manual error handling ftw
-        the_result.read_to_string( & mut body );
-      },
-    }
-    let deserialized: Result< StockfighterVenue, serde_json::error::Error> = serde_json::from_str( &body );
-    match deserialized {
-      Err(e) => { 
-        self.ok = false;
-        err = true;
-        //Possibility for multiple error types (hyper::error::Error vs serde_json::error::Error) means try! is no good to us here either
-        err_val = format!("{}Deserialize error in StockfighterVenue::heartbeat(): {:?}\n", err_val, e); 
-      },
-      Ok(the_result) => { 
-        self.ok = the_result.ok;
-      },
-    }
-    if err  {
-      Err( err_val )
-    } else {
-      Ok(self)
-    }
+    let result = try!(client.get( &url ).header(Connection::close()).send().map_err( StockfighterErr::Hyper ));
+    let deserialized = try!(serde_json::from_str( &body ).map_err( StockfighterErr::Serde ));
+    Ok( true )
   } 
 
   pub fn new( venue: String ) -> StockfighterVenue {
@@ -119,38 +87,16 @@ impl StockfighterVenue {
     }
   }
 
-  pub fn stock_listing( venue: String ) -> Result< Vec<Stock>, String > {
+  pub fn stock_listing( venue: String ) -> Result< Vec<Stock>, StockfighterErr > {
     let url = format!("{}/venues/{}/stocks", STOCKFIGHTER_API_URL.to_owned(), venue);
     let mut body = String::new();
     let mut err: bool = false;
     let mut err_val = String::new();
     let client = Client::new();
     let mut stock_list: StockfighterVenueStocks = self::StockfighterVenueStocks::new();
-    let response: Result< hyper::client::response::Response, hyper::error::Error> = client.get( &url ).header(Connection::close()).send();
-    match response {
-      Err( e ) => {
-        err = true;
-        err_val = format!("client.get error in StockfighterVenueStocks::stock_listing(): {:?}\n", e);
-      },
-      Ok( mut the_result ) => {
-        the_result.read_to_string( &mut body );
-      },
-    }
-    let deserialized: Result< StockfighterVenueStocks, serde_json::error::Error> = serde_json::from_str( &body );
-    match deserialized {
-      Err(e) => {
-        err = true;
-        err_val = format!("{}Deserialize error in StockfighterVenueStocks::stock_listing(): {:?}\n", err_val, e);
-      },
-      Ok(the_result) => {
-        stock_list.symbols = the_result.symbols;
-      },
-    }
-    if err {
-      Err( err_val )
-    } else {
-      Ok(stock_list.symbols)
-    }
+    let response = try!(client.get( &url ).header(Connection::close()).send().map_err( StockfighterErr::Hyper ));
+    let deserialized = try!(serde_json::from_str( &body ).map_err( StockfighterErr::Serde ));
+    Ok( stock_list.symbols )
   }
 }
 
@@ -183,7 +129,6 @@ pub struct StockfighterAPI {
 
 impl StockfighterAPI {
 
-  ///
   /// Checks to see if the Stockfighter API is up and running. 
   ///
   /// Sets the value of the StockfighterAPI struct members based on the 
@@ -201,40 +146,18 @@ impl StockfighterAPI {
   ///   println!("API is DOWN\nError: {}", api.error);
   /// }
   /// ```
-  pub fn heartbeat( &mut self ) -> Result< &StockfighterAPI, String> {
+  pub fn heartbeat( &mut self ) -> Result< &mut StockfighterAPI, StockfighterErr> {
     self.ok = false; 
     let url = format!("{}/heartbeat", STOCKFIGHTER_API_URL.to_owned());
     let mut body = String::new();
     let client = Client::new();
     let mut err: bool = false;
     let mut err_val = String::new();
-    let response: Result< hyper::client::response::Response, hyper::error::Error> = client.get( &url ).header(Connection::close()).send();//.unwrap();
-    match response {
-      Err( e ) => {
-        self.ok = false;
-        err = true;
-        err_val = format!("client.get error in StockfighterAPI::heartbeat(): {:?}\n", e);
-      },
-      Ok( mut the_result ) => {
-        the_result.read_to_string( & mut body );
-      },
-    }
-    let deserialized: Result< StockfighterAPI, serde_json::error::Error> = serde_json::from_str( &body );//.unwrap();
-    match deserialized {
-      Err( e ) => {
-        self.ok = false;
-        err = true;
-        err_val = format!("{}Deserialize error in StockfighterAPI::heartbeat(): {:?}\n", err_val, e);
-      },
-      Ok( the_result ) => {
-        self.ok = the_result.ok;
-      },
-    }
-    if err {
-      Err( err_val )
-    } else {
-      Ok( self )
-    }
+    let reponse = try!(client.get( &url ).header(Connection::close()).send().map_err( StockfighterErr::Hyper ));
+    let deserialized: StockfighterAPI = try!(serde_json::from_str( &body ).map_err( StockfighterErr::Serde ));
+    self.ok = deserialized.ok;
+    self.error = deserialized.error;
+    Ok( self )
   } 
 
   pub fn new() -> StockfighterAPI {
@@ -351,42 +274,19 @@ pub struct OrderBook {
 }
 
 impl OrderBook {
-  pub fn refresh( &mut self ) -> Result< &mut OrderBook, String > {
+  pub fn refresh( &mut self ) -> Result< &mut OrderBook, StockfighterErr > {
     self.ok = false;
     let url = format!("{}/venues/{}/stocks/{}", STOCKFIGHTER_API_URL.to_owned(), self.venue, self.symbol);
     let mut body = String::new();
     let mut err: bool = false;
     let mut err_val = String::new();
     let client = Client::new();
-    let response: Result< hyper::client::response::Response, hyper::error::Error > = client.get( &url ).header(Connection::close()).send();
-    match response {
-      Err( e ) => {
-        self.ok = false;
-        err = true;
-        err_val = format!("client.get error in Orderbook::refresh(): {:?}\n", e);
-      },
-      Ok( mut the_result ) => {
-        the_result.read_to_string( &mut body );
-      },
-    }
-    let deserialized: Result< OrderBook, serde_json::error::Error > = serde_json::from_str( &body );
-    match deserialized {
-      Err( e ) => {
-        self.ok = false;
-        err = true;
-        err_val = format!("{}Deserialize error in OrderBook::refresh(): {:?}\n", err_val, e);
-      },
-      Ok( the_result ) => {
-        self.ok = the_result.ok;
-        self.bids = the_result.bids;
-        self.asks = the_result.asks;
-        self.ts = the_result.ts;
-      },
-    }
-    if err {
-      Err( err_val )
-    } else {
-      Ok( self )
-    }
+    let response = try!(client.get( &url ).header(Connection::close()).send().map_err( StockfighterErr::Hyper ));
+    let deserialized: OrderBook = try!(serde_json::from_str( &body ).map_err( StockfighterErr::Serde ));
+    self.ok = deserialized.ok;
+    self.bids = deserialized.bids;
+    self.asks = deserialized.asks;
+    self.ts = deserialized.ts;
+    Ok( self )
   }
 }
