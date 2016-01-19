@@ -196,33 +196,6 @@ impl StockfighterAPI {
     }
 }
 
-
-/// ********** revise this ******************
-/*pub struct Settings {
-    pub apikey: String,
-    pub base_url: String,
-    pub venue: String,
-}
-impl Settings {
-    pub fn new(venue: String) -> Settings {
-        Settings {
-            apikey: self::Settings::get_apikey(),
-            base_url: "https://api.stockfighter.io/ob/api".to_string(),
-            venue: venue,
-        }
-    }
-    /// ********************************************
-    /// Returns the API key from an environmental variable named STOCKFIGHTERAPI.
-    /// Using Linux and BASH, you'd set it by adding a line like the following
-    /// to the last line of your .bashrc file in your home directory (ie. cd ~/ && nano .bashrc)
-    /// export STOCKFIGHTERAPI=abcdefghijklmnopqrstuvwxyzabcdefg
-    /// then log out and back in.
-    /// api_key_from_env() will then return that api key as a String.
-//    pub fn get_apikey() -> String {
-//        env!("STOCKFIGHTERAPI").to_string()
-//    }
-}
-*/
 pub fn get_apikey() -> String {
     env!("STOCKFIGHTERAPI").to_string()
 }
@@ -277,12 +250,12 @@ impl Order {
     pub fn process_order(&self) -> Result< String, StockfighterErr > {
         let header_vec: Vec<Vec<u8>> = vec!( get_apikey().as_bytes().to_vec() );
         let body: String = try!( self.encode_order() );
-        println!("Our body is: {}", body);
         let url = self.order_url(); 
         let mut headers = Headers::new();
         headers.set_raw("X-Starfighter-Authorization", header_vec);
         let client = Client::new();
         let mut response = try!( client.post( &url )
+                                .body( &body )
                                 .headers( headers )
                                 .send() );
         let mut ret_string = String::new();
