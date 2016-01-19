@@ -19,8 +19,26 @@ static STOCKFIGHTER_API_URL: &'static str = "https://api.stockfighter.io/ob/api"
 pub enum StockfighterErr {
     Hyper(hyper::error::Error),
     Serde(serde_json::error::Error),
+    IO(std::io::Error),
 }
 
+impl From<hyper::error::Error> for StockfighterErr {
+    fn from( error: hyper::error::Error ) -> StockfighterErr {
+        StockfighterErr::Hyper(error)
+    }
+}
+
+impl From<serde_json::error::Error> for StockfighterErr {
+    fn from( error: serde_json::error::Error ) -> StockfighterErr {
+        StockfighterErr::Serde(error)
+    }
+}
+
+impl From<std::io::Error> for StockfighterErr {
+    fn from( error: std::io::Error ) -> StockfighterErr {
+        StockfighterErr::IO(error)
+    }
+}
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct StockfighterVenue {
@@ -77,11 +95,12 @@ impl StockfighterVenue {
                           self.venue);
         let mut body = String::new();
         let client = Client::new();
-        let result = try!(client.get(&url)
+        let mut response = try!(client.get(&url)
                                 .header(Connection::close())
-                                .send()
-                                .map_err(StockfighterErr::Hyper));
-        let deserialized = try!(serde_json::from_str(&body).map_err(StockfighterErr::Serde));
+                                .send() );
+        try!( response.read_to_string( &mut body ) );
+        let deserialized: StockfighterVenue = try!(serde_json::from_str(&body));
+        self.ok = deserialized.ok;
         Ok(true)
     }
 
@@ -97,15 +116,14 @@ impl StockfighterVenue {
                           STOCKFIGHTER_API_URL.to_owned(),
                           venue);
         let mut body = String::new();
-        let mut err: bool = false;
-        let mut err_val = String::new();
         let client = Client::new();
         let mut stock_list: StockfighterVenueStocks = self::StockfighterVenueStocks::new();
-        let response = try!(client.get(&url)
+        let mut response = try!(client.get(&url)
                                   .header(Connection::close())
-                                  .send()
-                                  .map_err(StockfighterErr::Hyper));
-        let deserialized = try!(serde_json::from_str(&body).map_err(StockfighterErr::Serde));
+                                  .send() );
+        try!( response.read_to_string( &mut body ) );
+        let deserialized: StockfighterVenueStocks = try!(serde_json::from_str(&body) ); 
+        //populate the vector from our deserialized response
         Ok(stock_list.symbols)
     }
 }
@@ -160,14 +178,11 @@ impl StockfighterAPI {
         let url = format!("{}/heartbeat", STOCKFIGHTER_API_URL.to_owned());
         let mut body = String::new();
         let client = Client::new();
-        let mut err: bool = false;
-        let mut err_val = String::new();
-        let reponse = try!(client.get(&url)
+        let mut response = try!(client.get(&url)
                                  .header(Connection::close())
-                                 .send()
-                                 .map_err(StockfighterErr::Hyper));
-        let deserialized: StockfighterAPI = try!(serde_json::from_str(&body)
-                                                     .map_err(StockfighterErr::Serde));
+                                 .send() );
+        try!( response.read_to_string( &mut body ) );
+        let deserialized: StockfighterAPI = try!(serde_json::from_str(&body) );
         self.ok = deserialized.ok;
         self.error = deserialized.error;
         Ok(self)
@@ -183,7 +198,7 @@ impl StockfighterAPI {
 
 
 /// ********** revise this ******************
-pub struct Settings {
+/*pub struct Settings {
     pub apikey: String,
     pub base_url: String,
     pub venue: String,
@@ -203,9 +218,13 @@ impl Settings {
     /// export STOCKFIGHTERAPI=abcdefghijklmnopqrstuvwxyzabcdefg
     /// then log out and back in.
     /// api_key_from_env() will then return that api key as a String.
-    pub fn get_apikey() -> String {
-        env!("STOCKFIGHTERAPI").to_string()
-    }
+//    pub fn get_apikey() -> String {
+//        env!("STOCKFIGHTERAPI").to_string()
+//    }
+}
+*/
+pub fn get_apikey() -> String {
+    env!("STOCKFIGHTERAPI").to_string()
 }
 
 #[allow(non_snake_case)]
@@ -242,20 +261,35 @@ impl Order {
         }
     }
 
-    pub fn encode_order(&self) -> String {
-        let return_string = serde_json::to_string(&self).unwrap();
-        return_string.to_string()
+    fn encode_order(&self) -> Result< String, StockfighterErr > {
+        let return_string = try!(serde_json::to_string(&self) );
+        Ok( return_string.to_string() )
     }
 
-    pub fn order_url(&self, the_settings: &Settings) -> String {
+    fn order_url(&self) -> String {
         let return_string = format!("{}/venues/{}/stocks/{}/orders",
-                                    the_settings.base_url,
-                                    the_settings.venue,
+                                    STOCKFIGHTER_API_URL.to_owned(),
+                                    self.venue,
                                     self.stock);
         return_string
     }
 
-    // **************** needs a pub fn process_order() ************
+    pub fn process_order(&self) -> Result< String, StockfighterErr > {
+        let header_vec: Vec<Vec<u8>> = vec!( get_apikey().as_bytes().to_vec() );
+        let body: String = try!( self.encode_order() );
+        println!("Our body is: {}", body);
+        let url = self.order_url(); 
+        let mut headers = Headers::new();
+        headers.set_raw("X-Starfighter-Authorization", header_vec);
+        let client = Client::new();
+        let mut response = try!( client.post( &url )
+                                .headers( headers )
+                                .send() );
+        let mut ret_string = String::new();
+        try!( response.read_to_string( &mut ret_string ));
+        Ok( ret_string )
+    }
+
 }
 
 // This would normally be an enum. However, given that we may want to try and break things later
@@ -296,15 +330,12 @@ impl OrderBook {
                           self.venue,
                           self.symbol);
         let mut body = String::new();
-        let mut err: bool = false;
-        let mut err_val = String::new();
         let client = Client::new();
-        let response = try!(client.get(&url)
+        let mut response = try!(client.get(&url)
                                   .header(Connection::close())
-                                  .send()
-                                  .map_err(StockfighterErr::Hyper));
-        let deserialized: OrderBook = try!(serde_json::from_str(&body)
-                                               .map_err(StockfighterErr::Serde));
+                                  .send() );
+        try!( response.read_to_string( &mut body ) );
+        let deserialized: OrderBook = try!(serde_json::from_str(&body) );
         self.ok = deserialized.ok;
         self.bids = deserialized.bids;
         self.asks = deserialized.asks;
