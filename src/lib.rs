@@ -9,9 +9,11 @@ extern crate serde_json;
 use hyper::Client;
 use hyper::header::Connection;
 use hyper::header::Headers;
-use hyper::error::Error;
+//use hyper::error::Error;
 
 use std::io::Read;
+use std::error::Error;
+use std::fmt;
 
 static STOCKFIGHTER_API_URL: &'static str = "https://api.stockfighter.io/ob/api";
 
@@ -20,6 +22,8 @@ pub enum StockfighterErr {
     Hyper(hyper::error::Error),
     Serde(serde_json::error::Error),
     IO(std::io::Error),
+    NoSuchVenue(String),
+
 }
 
 impl From<hyper::error::Error> for StockfighterErr {
@@ -40,10 +44,38 @@ impl From<std::io::Error> for StockfighterErr {
     }
 }
 
+impl fmt::Display for StockfighterErr {
+    fn fmt( &self, f: &mut fmt::Formatter ) -> fmt::Result {
+        match *self {
+            StockfighterErr::Hyper( ref err ) => err.fmt(f),
+            StockfighterErr::Serde( ref err ) => err.fmt(f),
+            StockfighterErr::IO( ref err ) => err.fmt(f),
+            StockfighterErr::NoSuchVenue( ref err ) => write!(f, "{}", err),
+        }
+    }
+}
+
+impl Error for StockfighterErr {
+    fn description( &self ) -> &str {
+        match *self {
+            StockfighterErr::Hyper( ref err ) => err.description(),
+            StockfighterErr::Serde( ref err ) => err.description(),
+            StockfighterErr::IO( ref err ) => err.description(),
+            StockfighterErr::NoSuchVenue( ref err ) => "Venue Doesn't Exist",
+        }
+    }
+}
+
 #[derive(Serialize, Deserialize, Debug)]
 pub struct StockfighterVenue {
     pub venue: String,
     pub ok: bool,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+struct HeartbeatErr {
+    pub ok: bool,
+    pub error: String,
 }
 
 impl StockfighterVenue {
@@ -65,15 +97,10 @@ impl StockfighterVenue {
     /// match ret {
     ///   Err( e ) => {
     ///     println!("Heartbeat error: {:?}", e);
-    ///     //Could be a comms error. Is likely that ABCDEF isn't a valid venue, 
-    ///     //in which case we'll get a deserialize error
     ///   },
     ///   Ok( val ) => {
-    ///     println!("Hearbeat successful. Status is {:?}", val);
     ///     if val {
     ///       println!("We're good - Do the trading n such");
-    ///     } else {
-    ///       println!("We're wedged - Restart the level entirely.");
     ///     }
     ///   },
     /// }
@@ -99,9 +126,25 @@ impl StockfighterVenue {
                                 .header(Connection::close())
                                 .send() );
         try!( response.read_to_string( &mut body ) );
-        let deserialized: StockfighterVenue = try!(serde_json::from_str(&body));
-        self.ok = deserialized.ok;
-        Ok(true)
+        //To make things complicated, a heartbeat check returns a predictable JSON encoded struct
+        //... provided that the venue exists. If it doesn't, it's a completely different JSON
+        //encoded struct that gets returned: StockfighterVenue vs HeartbeatErr
+        //Serde doesn't seem to have a clean method of returning one, or the other, or an Err.
+        let result: Result< StockfighterVenue, serde_json::error::Error > = serde_json::from_str( &body );
+        match result {
+            Err( e ) => { 
+                //we received a serde error ... is it because it's deserializing into a
+                //HeartbeatErr struct instead of a StockfighterVenue struct?
+                let val: HeartbeatErr = try!( serde_json::from_str( &body ));
+                self.ok = val.ok;
+                return Err( StockfighterErr::NoSuchVenue( val.error ) );
+            },
+            //we received a StockfighterVenue struct straight off
+            Ok( val ) => { 
+                self.ok = val.ok;
+            },
+        }
+        Ok( self.ok )
     }
 
     pub fn new(venue: String) -> StockfighterVenue {
@@ -178,13 +221,16 @@ impl StockfighterAPI {
         let url = format!("{}/heartbeat", STOCKFIGHTER_API_URL.to_owned());
         let mut body = String::new();
         let client = Client::new();
+        println!("Getting heartbeat");
         let mut response = try!(client.get(&url)
                                  .header(Connection::close())
                                  .send() );
+        println!("Reading response to string");
         try!( response.read_to_string( &mut body ) );
-        let deserialized: StockfighterAPI = try!(serde_json::from_str(&body) );
-        self.ok = deserialized.ok;
-        self.error = deserialized.error;
+        println!("Deserializing");
+    //    let deserialized: StockfighterAPI = try!(serde_json::from_str(&body) );
+    //    self.ok = deserialized.ok;
+    //    self.error = deserialized.error;
         Ok(self)
     }
 
