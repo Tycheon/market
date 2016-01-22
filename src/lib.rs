@@ -221,16 +221,13 @@ impl StockfighterAPI {
         let url = format!("{}/heartbeat", STOCKFIGHTER_API_URL.to_owned());
         let mut body = String::new();
         let client = Client::new();
-        println!("Getting heartbeat");
         let mut response = try!(client.get(&url)
                                  .header(Connection::close())
                                  .send() );
-        println!("Reading response to string");
         try!( response.read_to_string( &mut body ) );
-        println!("Deserializing");
-    //    let deserialized: StockfighterAPI = try!(serde_json::from_str(&body) );
-    //    self.ok = deserialized.ok;
-    //    self.error = deserialized.error;
+        let deserialized: StockfighterAPI = try!(serde_json::from_str(&body) );
+        self.ok = deserialized.ok;
+        self.error = deserialized.error;
         Ok(self)
     }
 
