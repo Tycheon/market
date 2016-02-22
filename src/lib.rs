@@ -404,16 +404,16 @@ pub struct Quote {
     last: i32,
     lastSize: i32,
     lastTrade: String,
-    QuoteTime: String,
+    quoteTime: String,
 }
 
 impl Quote {
         pub fn new( venue: String,
-               stock: String )
+               symbol: String )
                -> Quote {
         Quote {
             ok: false,
-            symbol: "".to_owned(),
+            symbol: symbol.to_owned(),
             venue: venue,
             bid: 0,
             ask: 0,
@@ -424,7 +424,7 @@ impl Quote {
             last: 0,
             lastSize: 0,
             lastTrade: "".to_owned(),
-            QuoteTime: "".to_owned(),
+            quoteTime: "".to_owned(),
         }
     }
 
