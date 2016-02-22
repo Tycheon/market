@@ -44,7 +44,7 @@ Could not compile `market`.
 The market library will handle the connections to the stockfighter.io servers. However, to do so, the
 library needs access to a valid Stockfighter API key. Instead of putting that API key into the code
 itself, it references an environment varial named `STOCKFIGHTERAPI` which contains the api key found
-at [https://www.stockfighter.io/ui/api_keys] https://www.stockfighter.io/ui/api_keys -- we'll call
+at [https://www.stockfighter.io/ui/api_keys](https://www.stockfighter.io/ui/api_keys) -- we'll call
 that key `<yourAPIKey>`
 
 For *nix and Mac users, fire up the editor of your choice and insert the following line (and likely
