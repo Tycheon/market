@@ -11,6 +11,7 @@ use hyper::header::Connection;
 use hyper::header::Headers;
 //use hyper::error::Error;
 
+use std::mem;
 use std::io::Read;
 use std::error::Error;
 use std::fmt;
@@ -245,6 +246,32 @@ pub fn get_apikey() -> String {
 
 #[allow(non_snake_case)]
 #[derive(Serialize, Deserialize, Debug)]
+pub struct OrderResponse {
+    ok: bool,
+    symbol: String,
+    venue: String,
+    direction: String,
+    originalQty: i32,
+    qty: i32,
+    price: i32,
+    orderType: String,
+    id: i32,
+    account: String,
+    ts: String,
+    fills: Vec<OrderFill>,
+    totalFilled: i32,
+    open: bool,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+struct OrderFill {
+    price: i32,
+    qty: i32,
+    ts: String,
+}
+
+#[allow(non_snake_case)]
+#[derive(Serialize, Deserialize, Debug)]
 pub struct Order {
     account: String,
     venue: String,
@@ -290,7 +317,7 @@ impl Order {
         return_string
     }
 
-    pub fn process_order(&self) -> Result< String, StockfighterErr > {
+    pub fn process_order(&self) -> Result< OrderResponse, StockfighterErr > {
         let header_vec: Vec<Vec<u8>> = vec!( get_apikey().as_bytes().to_vec() );
         let body: String = try!( self.encode_order() );
         let url = self.order_url(); 
@@ -303,7 +330,8 @@ impl Order {
                                 .send() );
         let mut ret_string = String::new();
         try!( response.read_to_string( &mut ret_string ));
-        Ok( ret_string )
+        let mut serialized_response = try!(serde_json::from_str( &ret_string ));
+        Ok( serialized_response )
     }
 
 }
@@ -311,6 +339,7 @@ impl Order {
 // This would normally be an enum. However, given that we may want to try and break things later
 // making it a struct will make it easier to programmatically pass something other than the four
 // actual order types, but will also make it harder to accidentally make a typo.
+#[allow(non_snake_case)]
 pub struct OrderType {
     Limit: String,
     Market: String,
@@ -358,4 +387,62 @@ impl OrderBook {
         self.ts = deserialized.ts;
         Ok(self)
     }
+}
+
+#[allow( non_snake_case )]
+#[derive( Debug, Deserialize )]
+pub struct Quote {
+    ok: bool,
+    symbol: String,
+    venue: String,
+    bid: i32,
+    ask: i32,
+    bidSize: i32,
+    askSize: i32,
+    bidDepth: i32,
+    askDepth: i32,
+    last: i32,
+    lastSize: i32,
+    lastTrade: String,
+    QuoteTime: String,
+}
+
+impl Quote {
+        pub fn new( venue: String,
+               stock: String )
+               -> Quote {
+        Quote {
+            ok: false,
+            symbol: "".to_owned(),
+            venue: venue,
+            bid: 0,
+            ask: 0,
+            bidSize: 0,
+            askSize: 0,
+            bidDepth: 0,
+            askDepth: 0,
+            last: 0,
+            lastSize: 0,
+            lastTrade: "".to_owned(),
+            QuoteTime: "".to_owned(),
+        }
+    }
+
+    pub fn get_quote( & mut self ) -> Result< bool, StockfighterErr > {
+        self.ok = false;
+        let url = format!("{}/venues/{}/stocks/{}/quote",
+                          STOCKFIGHTER_API_URL.to_owned(),
+                          self.venue,
+                          self.symbol);
+        let mut body = String::new();
+        let client = Client::new();
+        let mut response = try!(client.get(&url)
+                                  .header(Connection::close())
+                                  .send() );
+        try!( response.read_to_string( &mut body ) );
+        let mut deserialized: Quote = try!(serde_json::from_str(&body) );
+        mem::replace( self,  deserialized );
+        Ok( true )
+    }
+
 }
