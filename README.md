@@ -68,7 +68,7 @@ todo
 
 # Contributors
 
-Not looking for contributors at the moment - but I'd *love* to read comments =)
+Feel free to fork and submit pull requests. I'd also love to hear any comments regarding the code.
 
 # License
 
