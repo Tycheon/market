@@ -244,44 +244,60 @@ pub fn get_apikey() -> String {
     env!("STOCKFIGHTERAPI").to_string()
 }
 
-#[allow(non_snake_case)]
 #[derive(Serialize, Deserialize, Debug)]
 pub struct OrderResponse {
-    ok: bool,
-    symbol: String,
-    venue: String,
-    direction: String,
-    originalQty: i32,
-    qty: i32,
-    price: i32,
-    orderType: String,
-    id: i32,
-    account: String,
-    ts: String,
-    fills: Vec<OrderFill>,
-    totalFilled: i32,
-    open: bool,
+    pub ok: bool,
+    #[serde(default)]
+    pub error: String,
+    #[serde(default)]
+    pub symbol: String,
+    #[serde(default)]
+    pub venue: String,
+    #[serde(default)]
+    pub direction: String,
+    #[serde(default)]
+    pub originalQty: i32,
+    #[serde(default)]
+    pub qty: i32,
+    #[serde(default)]
+    pub price: i32,
+    #[serde(default)]
+    pub orderType: String,
+    #[serde(default)]
+    pub id: i32,
+    #[serde(default)]
+    pub account: String,
+    #[serde(default)]
+    pub ts: String,
+    #[serde(default)]
+    pub fills: Vec<OrderFill>,
+    #[serde(default, rename="totalFilled")]
+    pub total_filled: i32,
+    #[serde(default)]
+    pub open: bool,
 }
+
 
 #[derive(Serialize, Deserialize, Debug)]
-struct OrderFill {
-    price: i32,
-    qty: i32,
-    ts: String,
+pub struct OrderFill {
+    #[serde(default)]
+    pub price: i32,
+    #[serde(default)]
+    pub qty: i32,
+    #[serde(default)]
+    pub ts: String,
 }
 
-#[allow(non_snake_case)]
 #[derive(Serialize, Deserialize, Debug)]
 pub struct Order {
-    account: String,
-    venue: String,
-    stock: String,
-    price: i32,
-    qty: i32,
-    direction: String,
-    ///orderType needs to be non-snake-case, as it gets translated into a 
-    ///JSON field whose name is CamelCased
-    orderType: String,
+    pub account: String,
+    pub venue: String,
+    pub stock: String,
+    pub price: i32,
+    pub qty: i32,
+    pub direction: String,
+    #[serde(rename="orderType")]
+    pub order_type: String,
 }
 
 impl Order {
@@ -300,7 +316,7 @@ impl Order {
             price: price,
             qty: qty,
             direction: direction,
-            orderType: order_type,
+            order_type: order_type,
         }
     }
 
@@ -330,6 +346,7 @@ impl Order {
                                 .send() );
         let mut ret_string = String::new();
         try!( response.read_to_string( &mut ret_string ));
+        println!("Received order response:\n{:#?}", ret_string );
         let mut serialized_response = try!(serde_json::from_str( &ret_string ));
         Ok( serialized_response )
     }
@@ -339,22 +356,25 @@ impl Order {
 // This would normally be an enum. However, given that we may want to try and break things later
 // making it a struct will make it easier to programmatically pass something other than the four
 // actual order types, but will also make it harder to accidentally make a typo.
-#[allow(non_snake_case)]
 pub struct OrderType {
-    Limit: String,
-    Market: String,
-    FillOrKill: String,
-    ImmediateOrCancel: String,
+    #[serde(rename="Limit")]
+    limit: String,
+    #[serde(rename="Market")]
+    market: String,
+    #[serde(rename="FillOrKill")]
+    fill_or_kill: String,
+    #[serde(rename="ImmediateOrCancel")]
+    immediate_or_cancel: String,
 }
 
 impl OrderType {}
 
-#[allow(non_snake_case)]
 #[derive( Serialize, Deserialize, Debug )]
 pub struct Bid {
     price: i32,
     qty: i32,
-    isBuy: bool,
+    #[serde(rename="isBuy")]
+    is_buy: bool,
 }
 
 #[derive( Serialize, Deserialize, Debug )]
@@ -389,22 +409,34 @@ impl OrderBook {
     }
 }
 
-#[allow( non_snake_case )]
-#[derive( Debug, Deserialize )]
+//A number of #[serde(default)] statements, since, instead of returning
+//a value of 0, or an empty string, the field is simply omitted, if
+//there's no data.
+#[derive( Debug, Serialize, Deserialize )]
 pub struct Quote {
-    ok: bool,
-    symbol: String,
-    venue: String,
-    bid: i32,
-    ask: i32,
-    bidSize: i32,
-    askSize: i32,
-    bidDepth: i32,
-    askDepth: i32,
-    last: i32,
-    lastSize: i32,
-    lastTrade: String,
-    quoteTime: String,
+    pub ok: bool,
+    pub symbol: String,
+    pub venue: String,
+    #[serde(default)]
+    pub bid: i32,
+    #[serde(default)]
+    pub ask: i32,
+    #[serde(default, rename="bidSize")]
+    pub bid_size: i32,
+    #[serde(default, rename="askSize")]
+    pub ask_size: i32,
+    #[serde(default, rename="bidDepth")]
+    pub bid_depth: i32,
+    #[serde(default, rename="askDepth")]
+    pub ask_depth: i32,
+    #[serde(default)]
+    pub last: i32,
+    #[serde(default, rename="lastSize")]
+    pub last_size: i32,
+    #[serde(default, rename="lastTrade")]
+    pub last_trade: String,
+    #[serde(default, rename="quoteTime")]
+    pub quote_time: String,
 }
 
 impl Quote {
@@ -417,14 +449,14 @@ impl Quote {
             venue: venue,
             bid: 0,
             ask: 0,
-            bidSize: 0,
-            askSize: 0,
-            bidDepth: 0,
-            askDepth: 0,
+            bid_size: 0,
+            ask_size: 0,
+            bid_depth: 0,
+            ask_depth: 0,
             last: 0,
-            lastSize: 0,
-            lastTrade: "".to_owned(),
-            quoteTime: "".to_owned(),
+            last_size: 0,
+            last_trade: "".to_owned(),
+            quote_time: "".to_owned(),
         }
     }
 
