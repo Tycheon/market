@@ -61,13 +61,15 @@ impl Error for StockfighterErr {
             StockfighterErr::Hyper( ref err ) => err.description(),
             StockfighterErr::Serde( ref err ) => err.description(),
             StockfighterErr::IO( ref err ) => err.description(),
-            StockfighterErr::NoSuchVenue( ref err ) => "Venue Doesn't Exist",
+            StockfighterErr::NoSuchVenue( _ ) => "Venue Doesn't Exist",
         }
     }
 }
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct StockfighterVenue {
+    // #[serde(default)] allows the value to be omitted from the JSON string that is returned
+    // Not including this will cause an error, should the element be omitted
     #[serde(default)]
     pub venue: String,
     pub ok: bool,
@@ -84,8 +86,8 @@ impl StockfighterVenue {
     /// response that it receives from the server.
     ///
     /// # Example
-    /// You can catch, and match on the return values of the heartbeat function in order
-    /// to do error handling.
+    /// You can match on the return values of the heartbeat function in order
+    /// to do error handling. However, a simple .unwrap() will work for most
     ///
     /// ```
     /// use market;
@@ -163,7 +165,6 @@ impl StockfighterVenueStocks {
                           venue);
         let mut body = String::new();
         let client = Client::new();
-        let mut stock_list: StockfighterVenueStocks = self::StockfighterVenueStocks::new();
         let mut response = try!(client.get(&url)
                                   .header(Connection::close())
                                   .send() );
@@ -235,14 +236,14 @@ pub struct OrderResponse {
     pub venue: String,
     #[serde(default)]
     pub direction: String,
-    #[serde(default)]
-    pub originalQty: i32,
+    #[serde(default, rename="originalQty")]
+    pub original_qty: i32,
     #[serde(default)]
     pub qty: i32,
     #[serde(default)]
     pub price: i32,
-    #[serde(default)]
-    pub orderType: String,
+    #[serde(default, rename="orderType")]
+    pub order_type: String,
     #[serde(default)]
     pub id: i32,
     #[serde(default)]
@@ -386,9 +387,6 @@ impl OrderBook {
     }
 }
 
-//A number of #[serde(default)] statements, since, instead of returning
-//a value of 0, or an empty string, the field is simply omitted, if
-//there's no data.
 #[derive( Debug, Serialize, Deserialize )]
 pub struct Quote {
     pub ok: bool,
@@ -437,6 +435,37 @@ impl Quote {
         }
     }
 
+    /// Provides information on the current valuation of a particular stock symbol at a particular
+    /// venue.
+    ///
+    /// A quote struct needs to be created and initialized with new, and then this method is called
+    /// on it.
+    ///
+    /// # Example
+    /// ```
+    /// // TESTEX is the stockfighter testing venue, and FOOBAR is the only stock that it trades
+    /// let mut quote = market::Quote::new( "TESTEX".to_owned(), "FOOBAR".to_owned() );
+    /// quote.get_quote().unwrap();
+    /// println!("The last trade took place at {}", quote.last_trade );
+    /// ```
+    ///
+    /// You can also match on the return value of the method to catch any errors and deal with them
+    /// however you please.
+    ///
+    /// # Example 2
+    /// ```
+    /// let mut quote = market::Quote::new( "TESTEX".to_owned(), "FOOBAR".to_owned() );
+    /// let response = quote.get_quote();
+    /// match response {
+    ///   Err( e ) => {
+    ///     println!("We hit a snag: {:?}", e );
+    ///   },
+    ///   Ok( val ) => {
+    ///      println!("Query worked. But does the venue/stock exist? This bool knows: {}", val );
+    ///   }
+    /// }
+    /// println!("Now we can do things with the actual quote struct: {:#?}", quote );
+    /// ```
     pub fn get_quote( & mut self ) -> Result< bool, StockfighterErr > {
         self.ok = false;
         let url = format!("{}/venues/{}/stocks/{}/quote",
@@ -449,7 +478,7 @@ impl Quote {
                                   .header(Connection::close())
                                   .send() );
         try!( response.read_to_string( &mut body ) );
-        let mut deserialized: Quote = try!(serde_json::from_str(&body) );
+        let deserialized: Quote = try!(serde_json::from_str(&body) );
         mem::replace( self,  deserialized );
         Ok( true )
     }
