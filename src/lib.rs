@@ -135,22 +135,6 @@ impl StockfighterVenue {
             error: "".to_owned(),
         }
     }
-
-    pub fn stock_listing(venue: String) -> Result<Vec<Stock>, StockfighterErr> {
-        let url = format!("{}/venues/{}/stocks",
-                          STOCKFIGHTER_API_URL.to_owned(),
-                          venue);
-        let mut body = String::new();
-        let client = Client::new();
-        let mut stock_list: StockfighterVenueStocks = self::StockfighterVenueStocks::new();
-        let mut response = try!(client.get(&url)
-                                  .header(Connection::close())
-                                  .send() );
-        try!( response.read_to_string( &mut body ) );
-        let deserialized: StockfighterVenueStocks = try!(serde_json::from_str(&body) ); 
-        //populate the vector from our deserialized response
-        Ok(stock_list.symbols)
-    }
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -171,6 +155,22 @@ impl StockfighterVenueStocks {
             ok: false,
             symbols: vec![],
         }
+    }
+
+    pub fn stock_listing( &mut self, venue: String) -> Result<bool, StockfighterErr> {
+        let url = format!("{}/venues/{}/stocks",
+                          STOCKFIGHTER_API_URL.to_owned(),
+                          venue);
+        let mut body = String::new();
+        let client = Client::new();
+        let mut stock_list: StockfighterVenueStocks = self::StockfighterVenueStocks::new();
+        let mut response = try!(client.get(&url)
+                                  .header(Connection::close())
+                                  .send() );
+        try!( response.read_to_string( &mut body ) );
+        let deserialized: StockfighterVenueStocks = try!(serde_json::from_str(&body) ); 
+        mem::replace( self, deserialized );
+        Ok( self.ok )
     }
 }
 
@@ -198,7 +198,7 @@ impl StockfighterAPI {
     ///   println!("API is DOWN\nError: {}", api.error);
     /// }
     /// ```
-    pub fn heartbeat(&mut self) -> Result<&mut StockfighterAPI, StockfighterErr> {
+    pub fn heartbeat(&mut self) -> Result<bool, StockfighterErr> {
         self.ok = false;
         let url = format!("{}/heartbeat", STOCKFIGHTER_API_URL.to_owned());
         let mut body = String::new();
@@ -209,7 +209,7 @@ impl StockfighterAPI {
         try!( response.read_to_string( &mut body ) );
         let deserialized: StockfighterAPI = try!(serde_json::from_str(&body) );
         mem::replace( self, deserialized );
-        Ok(self)
+        Ok(self.ok)
     }
 
     pub fn new() -> StockfighterAPI {
