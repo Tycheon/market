@@ -9,7 +9,6 @@ extern crate serde_json;
 use hyper::Client;
 use hyper::header::Connection;
 use hyper::header::Headers;
-//use hyper::error::Error;
 
 use std::mem;
 use std::io::Read;
@@ -69,13 +68,10 @@ impl Error for StockfighterErr {
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct StockfighterVenue {
+    #[serde(default)]
     pub venue: String,
     pub ok: bool,
-}
-
-#[derive(Serialize, Deserialize, Debug)]
-struct HeartbeatErr {
-    pub ok: bool,
+    #[serde(default)]
     pub error: String,
 }
 
@@ -112,7 +108,7 @@ impl StockfighterVenue {
     /// use market;
     /// let mut test_venue = market::StockfighterVenue::new( "ABCDEF".to_string() );
     /// test_venue.heartbeat();
-    /// if test_venue {
+    /// if test_venue.ok {
     ///   println!("Venue isn't wedged. Trade away!");
     /// }
     /// ```
@@ -127,24 +123,8 @@ impl StockfighterVenue {
                                 .header(Connection::close())
                                 .send() );
         try!( response.read_to_string( &mut body ) );
-        //To make things complicated, a heartbeat check returns a predictable JSON encoded struct
-        //... provided that the venue exists. If it doesn't, it's a completely different JSON
-        //encoded struct that gets returned: StockfighterVenue vs HeartbeatErr
-        //Serde doesn't seem to have a clean method of returning one, or the other, or an Err.
-        let result: Result< StockfighterVenue, serde_json::error::Error > = serde_json::from_str( &body );
-        match result {
-            Err( e ) => { 
-                //we received a serde error ... is it because it's deserializing into a
-                //HeartbeatErr struct instead of a StockfighterVenue struct?
-                let val: HeartbeatErr = try!( serde_json::from_str( &body ));
-                self.ok = val.ok;
-                return Err( StockfighterErr::NoSuchVenue( val.error ) );
-            },
-            //we received a StockfighterVenue struct straight off
-            Ok( val ) => { 
-                self.ok = val.ok;
-            },
-        }
+        let deserialized = try!(serde_json::from_str( &body ));
+        mem::replace( self, deserialized );
         Ok( self.ok )
     }
 
@@ -152,6 +132,7 @@ impl StockfighterVenue {
         StockfighterVenue {
             venue: venue,
             ok: false,
+            error: "".to_owned(),
         }
     }
 
@@ -227,8 +208,7 @@ impl StockfighterAPI {
                                  .send() );
         try!( response.read_to_string( &mut body ) );
         let deserialized: StockfighterAPI = try!(serde_json::from_str(&body) );
-        self.ok = deserialized.ok;
-        self.error = deserialized.error;
+        mem::replace( self, deserialized );
         Ok(self)
     }
 
@@ -344,11 +324,11 @@ impl Order {
                                 .body( &body )
                                 .headers( headers )
                                 .send() );
-        let mut ret_string = String::new();
-        try!( response.read_to_string( &mut ret_string ));
-        println!("Received order response:\n{:#?}", ret_string );
-        let mut serialized_response = try!(serde_json::from_str( &ret_string ));
-        Ok( serialized_response )
+        let mut body = String::new();
+        try!( response.read_to_string( &mut body ));
+        let deserialized = try!(serde_json::from_str( &body ));
+        Ok( deserialized )
+
     }
 
 }
@@ -388,7 +368,7 @@ pub struct OrderBook {
 }
 
 impl OrderBook {
-    pub fn refresh(&mut self) -> Result<&mut OrderBook, StockfighterErr> {
+    pub fn refresh(&mut self) -> Result<bool, StockfighterErr> {
         self.ok = false;
         let url = format!("{}/venues/{}/stocks/{}",
                           STOCKFIGHTER_API_URL.to_owned(),
@@ -401,11 +381,8 @@ impl OrderBook {
                                   .send() );
         try!( response.read_to_string( &mut body ) );
         let deserialized: OrderBook = try!(serde_json::from_str(&body) );
-        self.ok = deserialized.ok;
-        self.bids = deserialized.bids;
-        self.asks = deserialized.asks;
-        self.ts = deserialized.ts;
-        Ok(self)
+        mem::replace( self, deserialized );
+        Ok(self.ok)
     }
 }
 
