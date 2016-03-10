@@ -385,6 +385,17 @@ impl OrderBook {
         mem::replace( self, deserialized );
         Ok(self.ok)
     }
+
+    pub fn new( venue: String, stock: String ) -> OrderBook {
+        OrderBook{
+            ok: false,
+            venue: venue,
+            symbol: stock,
+            bids: vec!(),
+            asks: vec!(),
+            ts: "".to_owned(),
+        }
+    }
 }
 
 #[derive( Debug, Serialize, Deserialize )]
